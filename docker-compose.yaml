@@ -1,0 +1,19 @@
+
+version: "3.7"
+services:
+  # mqtt5 eclipse-mosquitto
+  mqtt5:
+    image: eclipse-mosquitto
+    container_name: mosquitto
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - mqtt_data:/mosquitto/data
+      - mqtt_logs:/mosquitto/log
+    restart: unless-stopped
+
+volumes:
+  mqtt_data:
+  mqtt_logs:
