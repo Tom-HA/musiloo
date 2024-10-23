@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -12,8 +13,20 @@ import (
 	MQTT "github.com/eclipse/paho.mqtt.golang"
 )
 
+type MessagePayload struct {
+	MotionDetected bool `json:"motion_detected"`
+}
+
 func onMessageReceived(client MQTT.Client, message MQTT.Message) {
-	fmt.Printf("Received message!\nTopic: %s\nMessage: %s\n", message.Topic(), message.Payload())
+	var payload MessagePayload
+	err := json.Unmarshal(message.Payload(), &payload)
+	if err != nil {
+		fmt.Errorf("failed to parse message payload: %w", err)
+	}
+
+	if payload.MotionDetected {
+		fmt.Println("Motion detected!")
+	}
 }
 
 func getEnv(key string, fallback string) string {
