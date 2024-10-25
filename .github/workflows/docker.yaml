@@ -1,0 +1,84 @@
+name: build and push images
+
+on:
+  push:
+    branches:
+      - 'main'
+    tags:
+      - '*'
+
+  workflow_dispatch:
+    inputs:
+
+  pull_request:
+    branches:
+      - 'main'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  BASE_PROJECTS_DIR: platform
+
+jobs:
+  build-and-push:
+    runs-on: 'ubuntu-latest'
+    name: build
+    permissions:
+      contents: read
+      packages: write
+      pull-requests: read
+      id-token: 'write'
+
+    steps:
+      -
+        name: Checkout
+        uses: actions/checkout@v4
+
+      -
+        name: Set variables
+        id: vars
+        shell: bash
+        run: |
+          export repo_slug=$(echo ${GITHUB_REPOSITORY,,})
+          echo "REPO_SLUG=${repo_slug}" >> $GITHUB_ENV
+          echo "REPO_NAME=${{github.event.repository.name}}" >> $GITHUB_ENV
+          echo "SOURCE_REF_NAME=${{ github.head_ref || github.ref_name }}" >> $GITHUB_ENV
+
+      -
+        name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      -
+        name: Login to Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      -
+        name: Extract metadata
+        id: meta
+        if: ${{ steps.changes.outputs.src == 'true' || inputs.force_update }}
+        uses: docker/metadata-action@v5
+        env:
+          DOCKER_METADATA_PR_HEAD_SHA: true
+        with:
+          images: |
+            name=${{ env.REGISTRY }}/${{ env.REPO_SLUG }}
+          tags: |
+            type=raw,value=${{ env.SOURCE_REF_NAME }}-{{sha}}
+            type=semver,pattern={{version}}
+            type=raw,value=latest,enable={{is_default_branch}}
+      -
+        name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: 'linux/arm64'
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.REPO_SLUG }}:build-cache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.REPO_SLUG }}:build-cache,mode=max
