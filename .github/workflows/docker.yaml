@@ -61,7 +61,6 @@ jobs:
       -
         name: Extract metadata
         id: meta
-        if: ${{ steps.changes.outputs.src == 'true' || inputs.force_update }}
         uses: docker/metadata-action@v5
         env:
           DOCKER_METADATA_PR_HEAD_SHA: true
