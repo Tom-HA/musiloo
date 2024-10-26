@@ -53,6 +53,10 @@ func main() {
 	if err != nil {
 		panic("Failed to parse MQTT QOS")
 	}
+	spotifyPlaylistName := getEnv("SPOTIFY_PLAYLIST_NAME", "")
+	if spotifyPlaylistName == "" {
+		panic("Please specify SPOTIFY_PLAYLIST_NAME")
+	}
 
 	connOptions := MQTT.NewClientOptions().AddBroker(server).SetClientID(clientID).SetCleanSession(true)
 	if username != "" {
