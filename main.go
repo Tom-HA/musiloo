@@ -13,6 +13,8 @@ import (
 	MQTT "github.com/eclipse/paho.mqtt.golang"
 )
 
+const spotifyCLIName string = "tmp"
+
 type MessagePayload struct {
 	MotionDetected bool `json:"motion_detected"`
 }
@@ -27,6 +29,14 @@ func onMessageReceived(client MQTT.Client, message MQTT.Message) {
 	if payload.MotionDetected {
 		fmt.Println("Motion detected!")
 	}
+
+    cmd := exec.Command(spotifyCLIName)
+    _, err := cmd.Output()
+
+    if err != nil {
+        fmt.Println(err.Error())
+        return
+    }
 }
 
 func getEnv(key string, fallback string) string {
@@ -37,6 +47,11 @@ func getEnv(key string, fallback string) string {
 }
 
 func main() {
+	path, err := exec.LookPath(spotifyCLIName)
+	if err != nil {
+		panic(fmt.Sprintf("could not detect '%s' binary", spotifyCLIName))
+	}
+
 	MQTT.DEBUG = log.New(os.Stdout, "", 0)
 	MQTT.ERROR = log.New(os.Stdout, "", 0)
 	chn := make(chan os.Signal, 1)
