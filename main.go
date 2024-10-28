@@ -19,24 +19,33 @@ type MessagePayload struct {
 	MotionDetected bool `json:"motion_detected"`
 }
 
+func handlePlayback(playMusic: bool) Error {
+	var cmdArg string
+	if playMusic {
+		cmdArg = "start"
+	} else {
+		cmdArg "stop"
+	}
+	cmd := exec.Command(spotifyCLIName, cmdArg)
+    _, err := cmd.Output()
+
+    if err != nil {
+        return err
+    }
+	return nil
+}
+
 func onMessageReceived(client MQTT.Client, message MQTT.Message) {
 	var payload MessagePayload
 	err := json.Unmarshal(message.Payload(), &payload)
 	if err != nil {
 		fmt.Errorf("failed to parse message payload: %w", err)
 	}
-
-	if payload.MotionDetected {
-		fmt.Println("Motion detected!")
+	
+	err := handlePlayback(payload.MotionDetected)
+	if err != nil {
+		fmt.Errorf("failed to handle playback: %w", err)
 	}
-
-    cmd := exec.Command(spotifyCLIName)
-    _, err := cmd.Output()
-
-    if err != nil {
-        fmt.Println(err.Error())
-        return
-    }
 }
 
 func getEnv(key string, fallback string) string {
