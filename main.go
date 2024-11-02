@@ -39,19 +39,12 @@ type SpotifyHandlerConfig struct {
 	chn    chan<- *spotify.Client
 }
 
-func handlePlayback(playMusic: bool) Error {
-	var cmdArg string
+func handlePlayback(playMusic bool) error {
 	if playMusic {
-		cmdArg = "start"
+		println("Playing music")
 	} else {
-		cmdArg "stop"
+		println("Stop playing music")
 	}
-	cmd := exec.Command(spotifyCLIName, cmdArg)
-    _, err := cmd.Output()
-
-    if err != nil {
-        return err
-    }
 	return nil
 }
 
@@ -59,12 +52,12 @@ func onMessageReceived(client MQTT.Client, message MQTT.Message) {
 	var payload MessagePayload
 	err := json.Unmarshal(message.Payload(), &payload)
 	if err != nil {
-		fmt.Errorf("failed to parse message payload: %w", err)
+		fmt.Printf("failed to parse message payload: %v", err)
 	}
 
-	err := handlePlayback(payload.MotionDetected)
+	err = handlePlayback(payload.MotionDetected)
 	if err != nil {
-		fmt.Errorf("failed to handle playback: %w", err)
+		fmt.Printf("failed to handle playback: %v", err)
 	}
 }
 
@@ -76,11 +69,6 @@ func getEnv(key string, fallback string) string {
 }
 
 func main() {
-	path, err := exec.LookPath(spotifyCLIName)
-	if err != nil {
-		panic(fmt.Sprintf("could not detect '%s' binary", spotifyCLIName))
-	}
-
 	MQTT.DEBUG = log.New(os.Stdout, "", 0)
 	MQTT.ERROR = log.New(os.Stdout, "", 0)
 	chn := make(chan os.Signal, 1)
