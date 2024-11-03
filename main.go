@@ -36,20 +36,43 @@ type SpotifyHandlerConfig struct {
 	chn    chan<- *spotify.Client
 }
 
+func startPlayback(ctx context.Context, client *spotify.Client, spotifyURI string) error {
+	deviceIDs, err := client.PlayerDevices(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get player devices: %w", err)
+	}
+	uri := spotify.URI(spotifyURI)
+	err = client.PlayOpt(ctx, &spotify.PlayOptions{
+		DeviceID:        &deviceIDs[0].ID,
+		PlaybackContext: &uri,
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func stopPlayback(ctx context.Context, client *spotify.Client) error {
+	err := client.Pause(ctx)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func handlePlayback(ctx context.Context, client *spotify.Client, playMusic bool, spotifyURI string) error {
 	if playMusic {
-		println("Playing music")
-		err := client.PlayOpt(ctx, &spotify.PlayOptions{
-			URIs: []spotify.URI{spotify.URI(spotifyURI)},
-		})
+		err := startPlayback(ctx, client, spotifyURI)
 		if err != nil {
 			return err
 		}
+		fmt.Println("playback started")
 	} else {
-		err := client.Pause(ctx)
+		err := stopPlayback(ctx, client)
 		if err != nil {
 			return err
 		}
+		fmt.Println("playback paused")
 	}
 	return nil
 }
@@ -74,7 +97,7 @@ func getEnv(key string, fallback string) string {
 	return fallback
 }
 
-func getMQTTConnOptions(config MQTTConfig) (mqttOptions *MQTT.ClientOptions) {
+func getMQTTConnOptions(config MQTTConfig, callback MQTT.MessageHandler) (mqttOptions *MQTT.ClientOptions) {
 
 	connOptions := MQTT.NewClientOptions().AddBroker(config.server).SetClientID(config.clientID).SetCleanSession(true)
 	if config.username != "" {
@@ -87,10 +110,7 @@ func getMQTTConnOptions(config MQTTConfig) (mqttOptions *MQTT.ClientOptions) {
 	connOptions.SetTLSConfig(tlsConfig)
 
 	connOptions.OnConnect = func(c MQTT.Client) {
-		if token := c.Subscribe(
-			config.topic,
-			byte(config.qos),
-			func(_ MQTT.Client, message MQTT.Message) { onMessageReceived(message) }); token.Wait() && token.Error() != nil {
+		if token := c.Subscribe(config.topic, byte(config.qos), callback); token.Wait() && token.Error() != nil {
 			log.Fatal(token.Error())
 		}
 	}
@@ -98,24 +118,17 @@ func getMQTTConnOptions(config MQTTConfig) (mqttOptions *MQTT.ClientOptions) {
 	return connOptions
 }
 
-func authenticateSpotify() {
-	const redirectURI = "http://localhost:8080/callback"
-
-	var (
-		auth = spotifyauth.New(
-			spotifyauth.WithRedirectURL(redirectURI),
-			spotifyauth.WithScopes(spotifyauth.ScopeUserReadPrivate, spotifyauth.ScopeUserModifyPlaybackState))
-		ch    = make(chan *spotify.Client)
-		state = "musiloo"
-	)
+func authenticateSpotify(spotifyAuth *spotifyauth.Authenticator) (chn chan *spotify.Client) {
+	chn = make(chan *spotify.Client)
+	state := "musiloo"
 
 	http.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
 		spotifyHandlerConfig := &SpotifyHandlerConfig{
 			writer: w,
 			req:    r,
-			auth:   auth,
+			auth:   spotifyAuth,
 			state:  state,
-			chn:    ch,
+			chn:    chn,
 		}
 		spotifyClientHandler(*spotifyHandlerConfig)
 	})
@@ -129,16 +142,10 @@ func authenticateSpotify() {
 		}
 	}()
 
-	url := auth.AuthURL(state)
+	url := spotifyAuth.AuthURL(state)
 	fmt.Println("Please log in to Spotify by visiting the following page in your browser:", url)
 
-	client := <-ch
-
-	user, err := client.CurrentUser(context.Background())
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println("You are logged in as:", user.ID)
+	return chn
 }
 
 func spotifyClientHandler(cfg SpotifyHandlerConfig) {
@@ -158,11 +165,15 @@ func spotifyClientHandler(cfg SpotifyHandlerConfig) {
 	cfg.chn <- spotifyClient
 }
 
+func getSpotifyURI(playlistID string) string {
+	return fmt.Sprintf("spotify:playlist:%s", playlistID)
+}
+
 func main() {
 	MQTT.DEBUG = log.New(os.Stdout, "", 0)
 	MQTT.ERROR = log.New(os.Stdout, "", 0)
-	chn := make(chan os.Signal, 1)
-	signal.Notify(chn, os.Interrupt, syscall.SIGTERM)
+	mqttChn := make(chan os.Signal, 1)
+	signal.Notify(mqttChn, os.Interrupt, syscall.SIGTERM)
 
 	hostname, _ := os.Hostname()
 
@@ -181,13 +192,26 @@ func main() {
 		}(),
 	}
 
-	spotifyPlaylistName := getEnv("SPOTIFY_PLAYLIST_NAME", "")
-	if spotifyPlaylistName == "" {
-		log.Fatal("Please specify SPOTIFY_PLAYLIST_NAME")
+	spotifyPlaylistID := getEnv("SPOTIFY_PLAYLIST_ID", "")
+	if spotifyPlaylistID == "" {
+		log.Fatal("Please specify SPOTIFY_PLAYLIST_ID")
 	}
 
-	connOptions := getMQTTConnOptions(*mqttConfig)
+	redirectURI := "http://localhost:8080/callback"
+	spotifyAuthConfig := spotifyauth.New(
+		spotifyauth.WithRedirectURL(redirectURI),
+		spotifyauth.WithScopes(
+			spotifyauth.ScopeUserReadPrivate,
+			spotifyauth.ScopeUserModifyPlaybackState,
+			spotifyauth.ScopeUserReadPlaybackState))
 
+	spotifyChn := authenticateSpotify(spotifyAuthConfig)
+	spotifyClient := <-spotifyChn
+
+	ctx := context.Background()
+	connOptions := getMQTTConnOptions(*mqttConfig, func(_ MQTT.Client, message MQTT.Message) {
+		onMessageReceived(ctx, spotifyClient, getSpotifyURI(spotifyPlaylistID), message)
+	})
 	mqttClient := MQTT.NewClient(connOptions)
 	if token := mqttClient.Connect(); token.Wait() && token.Error() != nil {
 		panic(token.Error())
@@ -195,7 +219,5 @@ func main() {
 		fmt.Printf("Connected successfully to %s\n", mqttConfig.server)
 	}
 
-	authenticateSpotify()
-
-	<-chn
+	<-mqttChn
 }
