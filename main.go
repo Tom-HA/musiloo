@@ -36,30 +36,32 @@ type SpotifyHandlerConfig struct {
 	chn    chan<- *spotify.Client
 }
 
-func handlePlayback(playMusic bool, ctx context.Context, client *spotify.Client, spotifyURI string) error {
+func handlePlayback(ctx context.Context, client *spotify.Client, playMusic bool, spotifyURI string) error {
 	if playMusic {
 		println("Playing music")
 		err := client.PlayOpt(ctx, &spotify.PlayOptions{
-			URIs: spotify.URI(spotifyURI),
-		}
+			URIs: []spotify.URI{spotify.URI(spotifyURI)},
+		})
 		if err != nil {
 			return err
 		}
-
 	} else {
-		println("Stop playing music")
+		err := client.Pause(ctx)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-func onMessageReceived(message MQTT.Message) {
+func onMessageReceived(ctx context.Context, spotifyClient *spotify.Client, spotifyURI string, message MQTT.Message) {
 	var payload MessagePayload
 	err := json.Unmarshal(message.Payload(), &payload)
 	if err != nil {
 		fmt.Printf("failed to parse message payload: %v", err)
 	}
 
-	err = handlePlayback(payload.MotionDetected)
+	err = handlePlayback(ctx, spotifyClient, payload.MotionDetected, spotifyURI)
 	if err != nil {
 		fmt.Printf("failed to handle playback: %v", err)
 	}
@@ -73,6 +75,7 @@ func getEnv(key string, fallback string) string {
 }
 
 func getMQTTConnOptions(config MQTTConfig) (mqttOptions *MQTT.ClientOptions) {
+
 	connOptions := MQTT.NewClientOptions().AddBroker(config.server).SetClientID(config.clientID).SetCleanSession(true)
 	if config.username != "" {
 		connOptions.SetUsername(config.username)
