@@ -37,7 +37,7 @@ func main() {
 		Username: getEnv("MQTT_USERNAME", ""),
 		Password: getEnv("MQTT_PASSWORD", ""),
 		QOS: func() int {
-			qos, err := strconv.Atoi(getEnv("MQTT_QOS", "0"))
+			qos, err := strconv.Atoi(getEnv("MQTT_QOS", "2"))
 			if err != nil {
 				logger.Fatal("Failed to parse MQTT QOS")
 			}
