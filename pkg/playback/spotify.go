@@ -2,11 +2,12 @@ package playback
 
 import (
 	"fmt"
+	"log"
+	"net/http"
+
 	"github.com/zmb3/spotify/v2"
 	spotifyauth "github.com/zmb3/spotify/v2/auth"
 	"go.uber.org/zap"
-	"log"
-	"net/http"
 )
 
 type SpotifyHandlerConfig struct {
@@ -54,6 +55,7 @@ func AuthenticateSpotify(spotifyAuth *spotifyauth.Authenticator, logger *zap.Sug
 		if err != nil {
 			logger.Error("error handling callback", zap.Error(err))
 		}
+		fmt.Fprintf(w, "Spotify authentication completed successfully. You can close this window.")
 	})
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		log.Println("Received request at:", r.URL.String())
@@ -66,7 +68,7 @@ func AuthenticateSpotify(spotifyAuth *spotifyauth.Authenticator, logger *zap.Sug
 	}()
 
 	url := spotifyAuth.AuthURL(state)
-	logger.Info(fmt.Sprintf("Please log in to Spotify by visiting the following page in your browser: %s\n", url))
+	logger.Info(fmt.Sprintf("Please log in to Spotify by visiting the following page in your browser: %s", url))
 
 	return chn
 }

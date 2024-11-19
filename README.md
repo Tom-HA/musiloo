@@ -24,7 +24,10 @@ The application is configured through environment variables:
 ### Spotify Configuration
 - `SPOTIFY_PLAYLIST_ID`: ID of the Spotify playlist to play (required)
     - You can get this from the Spotify URL: `https://open.spotify.com/playlist/<PLAYLIST_ID>`
+- `SPOTIFY_CLIENT_ID`: Your Spotify application client ID (required)
+- `SPOTIFY_CLIENT_SECRET`: Your Spotify application client secret (required)
 
+* You can read [Spotify's documentation](https://developer.spotify.com/documentation/web-api/tutorials/getting-started#create-an-app) on how to create an application and retrieve the client ID and secret.
 
 ## Usage
 
@@ -37,6 +40,8 @@ ghcr.io/tom-ha/musiloo:latest
 
 1. Create a `.env` file with your configuration:
     ```env
+    SPOTIFY_CLIENT_ID=<spotify_client_id>
+    SPOTIFY_CLIENT_SECRET=<spotify_client_secret>
     SPOTIFY_PLAYLIST_ID=<playlist_id>
     MQTT_SERVER=<tcp://your.mqtt.broker:1883>
     MQTT_TOPIC=<mqtt_topic>

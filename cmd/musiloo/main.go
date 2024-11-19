@@ -2,15 +2,16 @@ package main
 
 import (
 	"context"
-	"github.com/eclipse/paho.mqtt.golang"
-	"github.com/tom-ha/musiloo/pkg/events"
-	"github.com/tom-ha/musiloo/pkg/playback"
-	"github.com/zmb3/spotify/v2/auth"
-	"go.uber.org/zap"
 	"os"
 	"os/signal"
 	"strconv"
 	"syscall"
+
+	mqtt "github.com/eclipse/paho.mqtt.golang"
+	"github.com/tom-ha/musiloo/pkg/events"
+	"github.com/tom-ha/musiloo/pkg/playback"
+	spotifyauth "github.com/zmb3/spotify/v2/auth"
+	"go.uber.org/zap"
 )
 
 func getEnv(key string, fallback string) string {
@@ -50,13 +51,26 @@ func main() {
 		logger.Fatal("Please specify SPOTIFY_PLAYLIST_ID")
 	}
 
+	spotifyClientID := getEnv("SPOTIFY_CLIENT_ID", "")
+	if spotifyClientID == "" {
+		logger.Fatal("Please specify SPOTIFY_CLIENT_ID")
+	}
+
+	spotifyClientSecret := getEnv("SPOTIFY_CLIENT_SECRET", "")
+	if spotifyClientSecret == "" {
+		logger.Fatal("Please specify SPOTIFY_CLIENT_SECRET")
+	}
+
 	redirectURI := "http://localhost:8080/callback"
 	spotifyAuthConfig := spotifyauth.New(
 		spotifyauth.WithRedirectURL(redirectURI),
 		spotifyauth.WithScopes(
 			spotifyauth.ScopeUserReadPrivate,
 			spotifyauth.ScopeUserModifyPlaybackState,
-			spotifyauth.ScopeUserReadPlaybackState))
+			spotifyauth.ScopeUserReadPlaybackState),
+		spotifyauth.WithClientID(spotifyClientID),
+		spotifyauth.WithClientSecret(spotifyClientSecret),
+	)
 
 	spotifyChn := playback.AuthenticateSpotify(spotifyAuthConfig, logger)
 	spotifyClient := <-spotifyChn
