@@ -3,6 +3,7 @@ package playback
 import (
 	"context"
 	"fmt"
+
 	"github.com/zmb3/spotify/v2"
 	"go.uber.org/zap"
 )
@@ -10,10 +11,10 @@ import (
 func startPlayback(ctx context.Context, client *spotify.Client, spotifyURI string) error {
 	deviceIDs, err := client.PlayerDevices(ctx)
 	if len(deviceIDs) <= 0 {
-		return fmt.Errorf("no devices found\n")
+		return fmt.Errorf("no devices found")
 	}
 	if err != nil {
-		return fmt.Errorf("failed to get player devices: %w\n", err)
+		return fmt.Errorf("failed to get player devices: %w", err)
 	}
 	uri := spotify.URI(spotifyURI)
 	err = client.PlayOpt(ctx, &spotify.PlayOptions{
