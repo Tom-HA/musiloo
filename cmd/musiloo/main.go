@@ -76,8 +76,12 @@ func main() {
 	spotifyClient := <-spotifyChn
 
 	ctx := context.Background()
+	err := playback.InitPlayback(ctx, spotifyClient, spotifyPlaylistID)
+	if err != nil {
+		logger.Fatal(err)
+	}
 	connOptions := events.GetMQTTConnOptions(*mqttConfig, func(_ mqtt.Client, message mqtt.Message) {
-		events.OnMessageReceived(ctx, spotifyClient, playback.GetSpotifyURI(spotifyPlaylistID), message, logger)
+		events.OnMessageReceived(ctx, spotifyClient, message, logger)
 	}, logger)
 	mqttClient := mqtt.NewClient(connOptions)
 	if token := mqttClient.Connect(); token.Wait() && token.Error() != nil {
