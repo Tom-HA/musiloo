@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+
 	MQTT "github.com/eclipse/paho.mqtt.golang"
 	"github.com/tom-ha/musiloo/pkg/playback"
 	"github.com/zmb3/spotify/v2"
@@ -24,14 +25,14 @@ type Config struct {
 	QOS      int
 }
 
-func OnMessageReceived(ctx context.Context, spotifyClient *spotify.Client, spotifyURI string, message MQTT.Message, logger *zap.SugaredLogger) {
+func OnMessageReceived(ctx context.Context, spotifyClient *spotify.Client, message MQTT.Message, logger *zap.SugaredLogger) {
 	var payload MessagePayload
 	err := json.Unmarshal(message.Payload(), &payload)
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to parse message payload: %v", err))
 	}
 
-	err = playback.HandlePlayback(ctx, spotifyClient, payload.MotionDetected, spotifyURI, logger)
+	err = playback.HandlePlayback(ctx, spotifyClient, payload.MotionDetected, logger)
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to handle playback: %v", err))
 	}
